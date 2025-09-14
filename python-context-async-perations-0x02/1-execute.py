@@ -1,3 +1,5 @@
+#db connection and query to take filter with age criteria
+
 import sqlite3
 
 class ExecuteQuery:
