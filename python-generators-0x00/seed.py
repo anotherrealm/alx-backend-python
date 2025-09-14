@@ -5,12 +5,12 @@ import uuid
 
 
 def connect_db():
-    """Connect to MySQL server (no specific DB yet)."""
+
     try:
         connection = mysql.connector.connect(
             host="localhost",
-            user="root",       # change if needed
-            password="root"    # change if needed
+            user="root",       
+            password="root"    
         )
         return connection
     except mysql.connector.Error as e:
