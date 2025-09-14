@@ -5,6 +5,7 @@ Task 0: Logging database queries using a decorator
 
 import sqlite3
 import functools
+from datetime import datetime
 
 
 def log_queries(func):
@@ -22,9 +23,9 @@ def log_queries(func):
         elif "query" in kwargs:
             query = kwargs["query"]
 
-        # Log the query
+        # Log the query with timestamp
         if query:
-            print(f"[LOG] Executing SQL query: {query}")
+            print(f"[{datetime.now()}] Executing SQL query: {query}")
 
         # Call the actual function
         return func(*args, **kwargs)

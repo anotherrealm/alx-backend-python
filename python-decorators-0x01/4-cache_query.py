@@ -29,7 +29,7 @@ def with_db_connection(func):
 def cache_query(func):
     """
     Decorator that caches query results based on the SQL query string.
-    If the query has been executed before, return cached result.
+    If the query has been executed before, return the cached result.
     """
     @functools.wraps(func)
     def wrapper(conn, *args, **kwargs):
