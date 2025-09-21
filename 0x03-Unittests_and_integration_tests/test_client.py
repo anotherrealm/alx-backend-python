@@ -2,7 +2,7 @@
 import unittest
 from typing import Any, Dict
 from unittest.mock import patch, PropertyMock, Mock
-from parameterized import parameterized, parameterized_class
+from parameterized import parameterized, parameterized_class 
 import client
 from fixtures import org_payload, repos_payload, expected_repos, apache2_repos
 
