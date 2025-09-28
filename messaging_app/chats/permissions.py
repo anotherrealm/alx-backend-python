@@ -1,35 +1,26 @@
-# messaging_app/chats/permissions.py
 from rest_framework.permissions import BasePermission
-
-class IsOwner(BasePermission):
-    """
-    Custom permission: allow access only if the object belongs to the requesting user.
-    """
-
-    def has_object_permission(self, request, view, obj):
-        return obj.user == request.user
-# chats/permissions.py
-from rest_framework.permissions import BasePermission, IsAuthenticated
-
+from .models import Conversation, Message
+from rest_framework import permissions
 class IsParticipantOfConversation(BasePermission):
     """
-    Custom permission to ensure only participants of a conversation
-    can access or modify its messages.
+    Only participants in a conversation can view, send, update, or delete messages.
     """
 
     def has_permission(self, request, view):
-        # Require authentication globally
+        # Must be logged in
         return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        """
-        obj can be either a Conversation or a Message instance.
-        We assume:
-          - Conversation model has a ManyToMany field `participants`
-          - Message model has a FK `conversation` → Conversation
-        """
-        if hasattr(obj, "participants"):  # Conversation object
+        # If obj is a Conversation → check participants
+        if isinstance(obj, Conversation):
             return request.user in obj.participants.all()
-        elif hasattr(obj, "conversation"):  # Message object
+
+        # If obj is a Message → check participants of its conversation
+        if isinstance(obj, Message):
             return request.user in obj.conversation.participants.all()
+
+        # Explicitly allow GET, POST, PUT, PATCH, DELETE if participant
+        if request.method in ["GET", "POST", "PUT", "PATCH", "DELETE"]:
+            return True
+
         return False
