@@ -1,0 +1,120 @@
+🔑 Authentication
+
+Request: Login (JWT)
+
+Method: POST
+
+URL: {{base_url}}/token/
+
+Body (raw JSON):
+
+{
+  "username": "testuser",
+  "password": "password123"
+}
+
+
+Test Script (to auto-save token):
+
+pm.environment.set("access_token", pm.response.json().access);
+
+💬 Conversations
+
+Request: Create Conversation
+
+Method: POST
+
+URL: {{base_url}}/conversations/
+
+Headers:
+
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+
+Body (raw JSON):
+
+{
+  "participants": [1, 2]
+}
+
+
+Request: List Conversations
+
+Method: GET
+
+URL: {{base_url}}/conversations/
+
+Headers:
+
+Authorization: Bearer {{access_token}}
+
+📩 Messages
+
+Request: Send Message
+
+Method: POST
+
+URL: {{base_url}}/messages/
+
+Headers:
+
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+
+Body (raw JSON):
+
+{
+  "conversation": 1,
+  "content": "Hello there!"
+}
+
+
+Request: List Messages (paginated)
+
+Method: GET
+
+URL: {{base_url}}/messages/?page=1
+
+Headers:
+
+Authorization: Bearer {{access_token}}
+
+
+Request: Filter Messages (by sender + date)
+
+Method: GET
+
+URL:
+
+{{base_url}}/messages/?sender=john&start_date=2025-01-01T00:00:00Z&end_date=2025-01-31T23:59:59Z
+
+
+Headers:
+
+Authorization: Bearer {{access_token}}
+
+🔒 Unauthorized Access Test
+
+Request: Access Conversations without Token
+
+Method: GET
+
+URL: {{base_url}}/conversations/
+
+No Authorization header
+
+Expected:
+
+{
+  "detail": "Authentication credentials were not provided."
+}
+
+3. Save the Collection
+
+In Postman, create a collection with the requests above.
+
+Export it as JSON:
+
+Click ⋮ → Export → v2.1 (recommended).
