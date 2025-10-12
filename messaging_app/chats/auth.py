@@ -1,8 +1,11 @@
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken
 
-class CustomJWTAuthentication(JWTAuthentication):
+def get_tokens_for_user(user):
     """
-    Extend this class if you need to add custom logic
-    (e.g., logging, token validation tweaks).
+    Generate access and refresh JWT tokens for a given user.
     """
-    pass
+    refresh = RefreshToken.for_user(user)
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
