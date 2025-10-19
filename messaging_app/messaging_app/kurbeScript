@@ -1,0 +1,19 @@
+#!/bin/bash
+
+#start minikube
+echo "Starting cluster"
+minikube start
+
+#check cluster status
+echo "Checking cluster info"
+kubectl cluster-info
+
+#list of running nodes
+echo "List kubernetes nodes"
+kubectl get nodes
+
+#list pods
+echo "checking available pods"
+kubectl get pods --all-namespaces
+
+echo "cluster setup complete"

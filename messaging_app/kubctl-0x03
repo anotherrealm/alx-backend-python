@@ -1,0 +1,32 @@
+#!/bin/bash
+# rolling update service for messaging app
+# Author: Bashu-011
+
+set -e  #exit if any error
+
+DEPLOYMENT="django-blue"
+SERVICE_URL="http://localhost"   #update using ingress
+
+echo "Applying updates"
+kubectl apply -f blue_deployment.yaml
+
+echo "Check rollout status"
+kubectl rollout status deployment/$DEPLOYMENT
+
+echo "Testing availabilty"
+echo "sending 20 requests"
+for i in {1..20}
+do
+  RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" $SERVICE_URL)
+  if [ "$RESPONSE" == "200" ]; then
+    echo "Request $i: App is up (HTTP 200)"
+  else
+    echo "Request $i: App may be unavailable (HTTP $RESPONSE)"
+  fi
+  sleep 2
+done
+
+echo "Verifying new pods"
+kubectl get pods -l app=django -o wide
+
+echo "Rolling updates completed"
