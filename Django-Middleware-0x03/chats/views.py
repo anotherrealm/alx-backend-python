@@ -1,108 +1,86 @@
-from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
+# messaging_app/chats/views.py
+from messaging_app.chats.filters import MessageFilter
+from messaging_app.chats.pagination import MessagePagination
+from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.filters import SearchFilter
 from django_filters.rest_framework import DjangoFilterBackend
-from .models import Conversation, Message
-from .serializers import (
-    ConversationSerializer,
-    MessageSerializer,
-    ConversationCreateSerializer,
-    MessageCreateSerializer,
-)
-from .permissions import IsParticipantOfConversation
-from .pagination import MessagePagination
-from .filters import MessageFilter
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 
+from .models import Conversation, Message, User
+from .serializers import ConversationSerializer, MessageSerializer
+from .permissions import IsOwner, IsParticipantOfConversation  
 
 class ConversationViewSet(viewsets.ModelViewSet):
-    """
-    Handles creating, listing, updating, and deleting conversations.
-    """
     queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
-    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    ordering_fields = ['created_at']
-    ordering = ['-created_at']
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    search_fields = ['participants__username']
+    permission_classes = [IsAuthenticated, IsOwner]
+    permission_classes = [IsParticipantOfConversation]  
 
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return ConversationCreateSerializer
-        return ConversationSerializer
+    @action(detail=False, methods=['post'])
+    def create_conversation(self, request):
+        participants = request.data.get('participants')
+        if not participants or len(participants) < 2:
+            return Response({"error": "A conversation must have at least two participants."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-    def get_queryset(self):
-        # Return only conversations where the user is a participant
-        return self.queryset.filter(participants=self.request.user).prefetch_related(
-            'participants', 'messages'
-        )
+        conversation = Conversation.objects.create()
+        for user_id in participants:
+            try:
+                user = User.objects.get(id=user_id)
+                conversation.participants.add(user)
+            except User.DoesNotExist:
+                return Response({"error": f"User with id {user_id} does not exist."},
+                                status=status.HTTP_404_NOT_FOUND)
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        conversation = serializer.save()
-        conversation.participants.add(request.user)
-
-        response_serializer = ConversationSerializer(conversation)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['post'])
-    def send_message(self, request, pk=None):
-        conversation = self.get_object()
-
-        # Ensure user is a participant
-        if not conversation.participants.filter(id=request.user.id).exists():
-            return Response(
-                {"error": "You are not a participant in this conversation"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        serializer = MessageCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        message = serializer.save(conversation=conversation, sender=request.user)
-
-        response_serializer = MessageSerializer(message)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['get'])
-    def messages(self, request, pk=None):
-        conversation = self.get_object()
-
-        if not conversation.participants.filter(id=request.user.id).exists():
-            return Response(
-                {"error": "You are not a participant in this conversation"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        messages = conversation.messages.all().order_by('-sent_at')
-        page = self.paginate_queryset(messages)
-
-        if page is not None:
-            serializer = MessageSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data)
+        conversation.save()
+        return Response(ConversationSerializer(conversation).data, status=status.HTTP_201_CREATED)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
-    """
-    Manage messages inside conversations.
-    """
+    queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
-    pagination_class = MessagePagination
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = MessageFilter
-    ordering_fields = ['sent_at']
-    ordering = ['-sent_at']
-    search_fields = ['message_body']
+    search_fields = ['message_body', 'sender__username']
+    permission_classes = [IsParticipantOfConversation]
+    pagination_class = MessagePagination 
 
     def get_queryset(self):
-        conversation_id = self.kwargs.get("conversation_id")
-        return Message.objects.filter(
-            conversation__id=conversation_id,
-            conversation__participants=self.request.user
-        ).select_related('sender', 'conversation')
+        """
+        Limit messages so user only sees those in conversations they participate in.
+        """
+        conversation_id = self.kwargs.get("conversation_id")  
+        if conversation_id:
+            return Message.objects.filter(conversation_id=conversation_id)
+        return Message.objects.none()
+
+    @action(detail=True, methods=['post'])
+    def send_message(self, request, pk=None):
+        try:
+            conversation = Conversation.objects.get(id=pk)
+        except Conversation.DoesNotExist:
+            return Response({"error": "Conversation not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        #is user a participant
+        if request.user not in conversation.participants.all():
+            return Response({"error": "You are not allowed to send messages to this conversation."},
+                            status=status.HTTP_403_FORBIDDEN)  
+
+        sender_id = request.data.get('sender_id')
+        message_body = request.data.get('message_body')
+
+        if not sender_id or not message_body:
+            return Response({"error": "Both sender ID and message body are required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            sender = User.objects.get(id=sender_id)
+        except User.DoesNotExist:
+            return Response({"error": "Sender not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        message = Message.objects.create(sender=sender, message_body=message_body, conversation=conversation)
+        return Response(MessageSerializer(message).data, status=status.HTTP_201_CREATED)
